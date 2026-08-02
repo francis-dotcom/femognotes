@@ -1,0 +1,8 @@
+{
+  "name": "femognotes",
+  "version": "1.0.0",
+  "description": "FemogNotes - Master AI & Agentic Systems Engineering Reference",
+  "scripts": {
+    "build": "mkdir -p public && cp ai_notes.md public/ai_notes.md"
+  }
+}
