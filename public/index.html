@@ -35,6 +35,7 @@
       --header-height: 64px;
       --code-bg: #f1f5f9;
       --table-stripe: #f8fafc;
+      --error-color: #ef4444;
     }
 
     [data-theme="dark"] {
@@ -47,6 +48,7 @@
       --accent-hover: #7dd3fc;
       --code-bg: #0f172a;
       --table-stripe: #1e293b;
+      --error-color: #f87171;
     }
 
     * {
@@ -69,6 +71,108 @@
       flex-direction: column;
       min-height: 100vh;
       transition: background-color 0.2s, color 0.2s;
+    }
+
+    /* Passcode Lock Modal Overlay */
+    .lock-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--bg-color);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+
+    .lock-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .lock-card {
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .lock-icon {
+      font-size: 3rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .lock-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .lock-subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .passcode-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .passcode-input {
+      background: var(--bg-color);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      text-align: center;
+      letter-spacing: 0.2em;
+      outline: none;
+      transition: border-color 0.2s ease;
+      width: 100%;
+    }
+
+    .passcode-input:focus {
+      border-color: var(--accent-color);
+    }
+
+    .passcode-btn {
+      background: var(--accent-color);
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .passcode-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .error-msg {
+      color: var(--error-color);
+      font-size: 0.85rem;
+      display: none;
+    }
+
+    .error-msg.visible {
+      display: block;
     }
 
     /* Header */
@@ -469,6 +573,22 @@
 </head>
 <body data-theme="light">
 
+  <!-- Passcode Protection Modal -->
+  <div class="lock-overlay" id="lockOverlay">
+    <div class="lock-card">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">FemogNotes Locked</div>
+      <div class="lock-subtitle">Enter your passcode to access and read the reference notes.</div>
+      
+      <form class="passcode-input-group" onsubmit="verifyPasscode(event)">
+        <input type="password" id="passcodeInput" class="passcode-input" placeholder="Passcode" autofocus autocomplete="current-password">
+        <button type="submit" class="passcode-btn">Unlock Notes</button>
+      </form>
+      
+      <div class="error-msg" id="errorMsg">Incorrect passcode. Please try again.</div>
+    </div>
+  </div>
+
   <header>
     <div style="display: flex; align-items: center; gap: 0.5rem;">
       <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Toggle menu">☰</button>
@@ -483,6 +603,9 @@
         <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
         <input type="text" id="searchInput" placeholder="Search notes..." onkeyup="filterContent()">
       </div>
+      <button class="btn-icon" onclick="lockSite()" title="Lock Site">
+        <span>🔒</span>
+      </button>
       <button class="btn-icon" onclick="toggleTheme()" aria-label="Toggle theme">
         <span id="themeIcon">🌙</span>
         <span id="themeLabel">Dark</span>
@@ -508,6 +631,53 @@
   </div>
 
   <script>
+    // Passcode Verification System (Default Passcode: femog2026)
+    const DEFAULT_PASSCODE = 'femog2026';
+
+    function getStoredPasscode() {
+      return localStorage.getItem('femog_passcode') || DEFAULT_PASSCODE;
+    }
+
+    function isSessionAuthenticated() {
+      return sessionStorage.getItem('femog_authenticated') === 'true';
+    }
+
+    function checkAuthentication() {
+      const lockOverlay = document.getElementById('lockOverlay');
+      if (isSessionAuthenticated()) {
+        lockOverlay.classList.add('hidden');
+      } else {
+        lockOverlay.classList.remove('hidden');
+        document.getElementById('passcodeInput').focus();
+      }
+    }
+
+    function verifyPasscode(event) {
+      if (event) event.preventDefault();
+      const input = document.getElementById('passcodeInput');
+      const errorMsg = document.getElementById('errorMsg');
+      const userPasscode = input.value.trim();
+
+      if (userPasscode === getStoredPasscode()) {
+        sessionStorage.setItem('femog_authenticated', 'true');
+        document.getElementById('lockOverlay').classList.add('hidden');
+        errorMsg.classList.remove('visible');
+        input.value = '';
+      } else {
+        errorMsg.classList.add('visible');
+        input.focus();
+        input.select();
+      }
+    }
+
+    function lockSite() {
+      sessionStorage.removeItem('femog_authenticated');
+      const lockOverlay = document.getElementById('lockOverlay');
+      lockOverlay.classList.remove('hidden');
+      document.getElementById('passcodeInput').value = '';
+      document.getElementById('passcodeInput').focus();
+    }
+
     // Theme toggle logic (Default: Light Mode)
     function toggleTheme() {
       const body = document.body;
@@ -648,6 +818,9 @@
         }
       });
     }
+
+    // Initialize Passcode Check on Load
+    checkAuthentication();
 
     // Fetch markdown file
     fetch('ai_notes.md')
